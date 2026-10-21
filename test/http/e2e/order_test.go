@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"example/internal/order"
+	"example/internal/domain/order"
 	"example/test/support"
 )
 
@@ -16,7 +16,7 @@ func TestPlaceAndGetOrder(t *testing.T) {
 	id := placeOrder(t, client, order.PlaceReq{SKU: "a-1", Quantity: 2})
 	got := getOrder(t, client, id)
 
-	if got.SKU != "a-1" || got.Quantity != 2 || got.Status != order.StatusPlaced {
+	if got.SKU != "a-1" || got.Quantity != 2 || got.Status != "placed" {
 		t.Fatalf("order %+v", got)
 	}
 }

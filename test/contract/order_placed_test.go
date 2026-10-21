@@ -6,7 +6,7 @@ import (
 
 	"github.com/efegreat/forgo/forgotest"
 
-	"example/internal/order"
+	"example/internal/domain/order"
 	"example/test/support"
 )
 

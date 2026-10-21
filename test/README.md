@@ -180,7 +180,7 @@ func TestPlaceAndGetOrder(t *testing.T) {
     id := placeOrder(t, client, order.PlaceReq{SKU: "a-1", Quantity: 2})
     got := getOrder(t, client, id)
 
-    if got.Status != order.StatusPlaced {
+    if got.Status != "placed" {
         t.Fatalf("order %+v", got)
     }
 }
@@ -265,7 +265,7 @@ func TestOrders(t *testing.T) {
     support.Fixture(t)
     orders := postgres.NewOrders(support.DB())
 
-    err := orders.Insert(t.Context(), order.Order{ID: "…", SKU: "a-1", Quantity: 2, Status: order.StatusPlaced})
+    err := orders.Insert(t.Context(), entity.Order{ID: "…", SKU: "a-1", Quantity: 2, Status: entity.OrderStatusPlaced})
     // ...
 }
 ```
@@ -284,14 +284,15 @@ Keep them next to the production code they test:
 
 ```text
 internal/
-└── order/
-    ├── order.go
-    └── order_test.go
+└── domain/
+    └── order/
+        ├── service.go
+        └── service_test.go
 ```
 
 Unit tests should normally avoid real external infrastructure.
 
-Dependencies may be replaced with fakes, stubs, or other lightweight test implementations where useful.
+Dependencies may be replaced with fakes, stubs, or other lightweight test implementations where useful. A domain depends on ports only, so a unit test passes its service fakes of the ports it needs.
 
 ---
 
@@ -338,7 +339,7 @@ Tests run as much of the production code as they can, so prefer configuration to
 | --- | --- | --- |
 | Infrastructure that runs in a container | PostgreSQL | Nothing is replaced: `config.DB` reads the container's `DATABASE_URL`. |
 | Broker | RabbitMQ | forgotest's stand-in broker, through `forgotest.ReplaceResource` in `support.Worker`. |
-| Third-party services | Payments, email, SMS | Preferably an `httptest.Server` fake, whose URL the client's configuration reads. Otherwise, a fake in place of the provider of the client, through `forgotest.Replace`. |
+| Third-party services | Payments, email, SMS | Preferably an `httptest.Server` fake, whose URL the client's configuration reads. Otherwise, a fake of the client's port in place of its adapter, through `forgotest.Replace`: adapter constructors return their port, so a fake's constructor returns the same type. |
 
 A fake that the tests of a package share is reset by each test, like the database.
 

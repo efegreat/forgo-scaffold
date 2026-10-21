@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"example/internal/order"
+	"example/internal/domain/order"
+	"example/internal/event"
 	"example/test/support"
 )
 
@@ -25,14 +26,14 @@ func TestPlaceOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(msgs) != 1 || msgs[0].Name != order.PlacedMessage || msgs[0].Destination != order.Destination {
+	if len(msgs) != 1 || msgs[0].Name != event.OrderPlacedName || msgs[0].Destination != event.OrdersDestination {
 		t.Fatalf("outbox %+v", msgs)
 	}
-	var e order.Placed
+	var e event.OrderPlaced
 	if err := json.Unmarshal(msgs[0].Payload, &e); err != nil {
 		t.Fatal(err)
 	}
-	if e != (order.Placed{OrderID: placed.ID, SKU: "a-1", Quantity: 2}) {
+	if e != (event.OrderPlaced{OrderID: placed.ID, SKU: "a-1", Quantity: 2}) {
 		t.Fatalf("payload %+v", e)
 	}
 }

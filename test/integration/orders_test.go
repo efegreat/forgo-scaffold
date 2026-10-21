@@ -3,8 +3,8 @@ package integration
 import (
 	"testing"
 
-	"example/internal/order"
-	"example/internal/postgres"
+	"example/internal/adapter/postgres"
+	"example/internal/entity"
 	"example/test/support"
 )
 
@@ -13,7 +13,7 @@ import (
 func TestOrders(t *testing.T) {
 	support.Fixture(t)
 	orders := postgres.NewOrders(support.DB())
-	o := order.Order{ID: "0199f0a0-0000-7000-8000-000000000001", SKU: "a-1", Quantity: 2, Status: order.StatusPlaced}
+	o := entity.Order{ID: "0199f0a0-0000-7000-8000-000000000001", SKU: "a-1", Quantity: 2, Status: entity.OrderStatusPlaced}
 
 	if err := orders.Insert(t.Context(), o); err != nil {
 		t.Fatal(err)

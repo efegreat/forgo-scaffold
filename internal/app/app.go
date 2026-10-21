@@ -1,5 +1,5 @@
-// Package app builds the application of each deployable. Its main runs it, and its tests run the same app
-// through forgo's forgotest, so the tests cover the wiring that production runs.
+// Package app builds the application of each deployable, one file each. Its main runs it, and its tests
+// run the same app through forgo's forgotest, so the tests cover the wiring that production runs.
 package app
 
 import (
@@ -7,72 +7,41 @@ import (
 	"github.com/efegreat/forgo-adapter/provider/inbox"
 	"github.com/efegreat/forgo-adapter/provider/outbox"
 	"github.com/efegreat/forgo-adapter/provider/sqltx"
-	"github.com/efegreat/forgo/cli"
-	"github.com/efegreat/forgo/commands/migration"
 	_ "github.com/lib/pq" // the PostgreSQL driver of config.DB
 
-	"example"
 	"example/config"
-	"example/internal/order"
-	"example/internal/postgres"
-	"example/internal/shipping"
+	"example/internal/adapter/postgres"
+	"example/internal/domain/order"
+	"example/internal/domain/shipping"
 )
 
-// Providers are the providers of every deployable, innermost first. None of them connects to anything,
-// so a deployable that does not use some of them pays nothing for them.
-var Providers = []any{
+// providers are the providers every deployable shares. A provider may only depend on the ones before it,
+// so forgo's storages and the adapters come before the domains. None of them connects to anything, so a
+// deployable that does not use some of them pays nothing for them. Every provider is invoked when an app
+// starts, though, so one that needs a resource only some deployables have, such as the broker, goes to
+// the apps of those deployables instead, with forgo.WithProviders.
+var providers = []any{
+	// forgo's transactions, inbox and outbox, from forgo-adapter
 	sqltx.NewTransactor,
 	inbox.NewPostgres,
 	outbox.NewPostgres,
+
+	// the ports, from adapter
 	postgres.NewOrders,
 	postgres.NewShipments,
 	postgres.NewOutbox,
+
+	// the domains
 	order.NewService,
 	shipping.NewService,
 }
 
-// HTTP is the app of the orders API. It needs no broker: it saves messages to the outbox, which the worker
-// relays.
-func HTTP() *forgo.App {
-	return newApp("example-http", []forgo.ResourceFactory{config.DB()}, config.HTTP)
-}
-
-// Worker is the app that handles messages and relays the outbox.
-func Worker() *forgo.App {
-	return newApp("example-worker", []forgo.ResourceFactory{config.DB(), config.Broker()}, config.Consumer, config.Producer)
-}
-
-// Cron is the app of the scheduled jobs.
-func Cron() *forgo.App {
-	return newApp("example-cron", []forgo.ResourceFactory{config.DB()}, config.Cron)
-}
-
-func newApp(name string, resources []forgo.ResourceFactory, servers ...forgo.ServerFactory) *forgo.App {
-	return forgo.NewApp(
+// options returns the options of every app, named name, followed by opts: the app's resources and
+// servers, and the providers only it has, which come after the shared ones.
+func options(name string, opts ...forgo.AppOption) []forgo.AppOption {
+	return append([]forgo.AppOption{
 		forgo.WithName(name),
 		forgo.WithLogger(config.Logger),
-		forgo.WithResources(resources...),
-		forgo.WithProviders(Providers...),
-		forgo.WithServers(servers...),
-	)
-}
-
-// CLI runs one command: migrate, the migrations of migrations/postgres. opts are added last, such as
-// cli.WithArgs in tests.
-func CLI(opts ...cli.Option) *cli.CLI {
-	return cli.New(append([]cli.Option{
-		cli.WithName("example-cli"),
-		cli.WithLogger(config.Logger),
-		cli.WithResources(config.DB()),
-		cli.WithConfig(cli.Config{Commands: []cli.CommandConfig{
-			{
-				Name: "migrate",
-				Command: migration.Factory(migration.CommandConfig{
-					Config: migration.Config{Dialect: "postgres"},
-					FS:     example.Migrations,
-					Dir:    "migrations/postgres", // also where -a=new writes, run from the root of the module
-				}),
-			},
-		}}),
-	}, opts...)...)
+		forgo.WithProviders(providers...),
+	}, opts...)
 }
