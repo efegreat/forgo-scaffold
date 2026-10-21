@@ -22,7 +22,7 @@ The example domain is small on purpose. Placing an order stores it and saves an 
 │   ├── event/         the messages the domains exchange: names, destinations, payloads
 │   ├── port/          the interfaces the domains need: repository.go, outbox.go
 │   └── adapter/       the implementations of the ports
-│       └── postgres/  orders.go, shipments.go, outbox.go
+│       └── postgres/  orders.go, shipments.go
 ├── migrations/        postgres/ and mysql/, embedded by migrations.go
 ├── layers_test.go     the import rules of internal
 └── test/              feature, E2E, worker, cron, contract and integration tests (test/README.md)
@@ -44,6 +44,7 @@ The domains are in the middle, the adapters around them, and `app` wires them to
 
 - Domains never import each other. They share entities, errors and events, and reach other domains through ports and messages, so they never form an import cycle.
 - Only `adapter` and `app` import infrastructure, such as `database/sql`, forgo-adapter and the clients of other services.
+- A port can be implemented outside `adapter`: forgo-adapter's outbox implements `port.Outbox`, so the app provides it directly.
 - Adapter constructors return their port, such as `postgres.NewOrders(db) port.OrderRepository`. The compiler checks the implementation, the bootstrap binds it under the port, and a test can put a fake in its place with `forgotest.Replace`.
 - `config` is where requests come in: its routes, message handlers and jobs call the domains.
 

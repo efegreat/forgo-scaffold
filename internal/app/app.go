@@ -21,7 +21,7 @@ import (
 // starts, though, so one that needs a resource only some deployables have, such as the broker, goes to
 // the apps of those deployables instead, with forgo.WithProviders.
 var providers = []any{
-	// forgo's transactions, inbox and outbox, from forgo-adapter
+	// forgo's transactions, inbox and outbox, from forgo-adapter. The outbox is port.Outbox too.
 	sqltx.NewTransactor,
 	inbox.NewPostgres,
 	outbox.NewPostgres,
@@ -29,7 +29,6 @@ var providers = []any{
 	// the ports, from adapter
 	postgres.NewOrders,
 	postgres.NewShipments,
-	postgres.NewOutbox,
 
 	// the domains
 	order.NewService,
