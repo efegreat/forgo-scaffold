@@ -37,3 +37,8 @@ func (r *orders) Get(ctx context.Context, id string) (entity.Order, bool, error)
 	}
 	return o, err == nil, err
 }
+
+func (r *orders) Update(ctx context.Context, o entity.Order) error {
+	_, err := sqltx.From(ctx, r.db).ExecContext(ctx, `UPDATE orders SET status = $2 WHERE id = $1`, o.ID, o.Status)
+	return err
+}

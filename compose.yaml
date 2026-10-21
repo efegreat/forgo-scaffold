@@ -1,0 +1,102 @@
+# The whole system on one machine: PostgreSQL, RabbitMQ, Redis and Prometheus, the migrations, and the
+# three deployables, built from the Dockerfile.
+#
+#   docker compose up --build
+#
+#   API                  http://localhost:8080/v1/orders
+#   ops of http, worker  http://localhost:8081, :8082 and :8083 (/health, /metrics, /live-configs)
+#   and cron
+#   RabbitMQ             http://localhost:15672 (guest, guest)
+#   Prometheus           http://localhost:9090
+#
+# Until forgo and forgo-adapter are released, the build reads their checkouts next to this one.
+name: example
+
+x-deployable: &deployable
+  build:
+    context: .
+    additional_contexts:
+      forgo: ../forgo
+      forgo-adapter: ../forgo-adapter
+  image: example
+  environment:
+    DATABASE_URL: postgres://example:example@postgres:5432/example?sslmode=disable
+    RABBITMQ_HOST: rabbitmq
+    REDIS_ADDR: redis:6379
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: example
+      POSTGRES_PASSWORD: example
+      POSTGRES_DB: example
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "example"]
+      interval: 2s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 5s
+      retries: 30
+
+  redis:
+    image: redis:8
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 30
+
+  migrate:
+    <<: *deployable
+    entrypoint: ["/usr/local/bin/cli", "migrate", "-a=up"]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  http:
+    <<: *deployable
+    entrypoint: ["/usr/local/bin/http"]
+    ports: ["8080:8080", "8081:8081"]
+    stop_grace_period: 40s # TermSig.Wait (10s) and TermTimeout (20s) of config.HTTP, and 10s to close
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  worker:
+    <<: *deployable
+    entrypoint: ["/usr/local/bin/worker"]
+    ports: ["8082:8082"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      rabbitmq: {condition: service_healthy}
+
+  cron:
+    <<: *deployable
+    entrypoint: ["/usr/local/bin/cron"]
+    ports: ["8083:8083"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    configs:
+      - source: prometheus
+        target: /etc/prometheus/prometheus.yml
+    ports: ["9090:9090"] # it scrapes the deployables once they are up, without waiting for them
+
+configs:
+  # Scrapes the ops server of every deployable.
+  prometheus:
+    content: |
+      global:
+        scrape_interval: 15s
+      scrape_configs:
+        - job_name: example
+          static_configs:
+            - targets: ["http:8081", "worker:8082", "cron:8083"]

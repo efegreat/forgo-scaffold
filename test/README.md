@@ -6,19 +6,20 @@ The general rule is:
 
 - Unit tests stay next to the code they test.
 - Tests under `/test` use real infrastructure where it can run in a test, such as PostgreSQL in a disposable container started through Testcontainers.
-- Tests that go through a server run the application that `main` runs: `internal/app` builds it, and forgo's [`forgotest`](https://github.com/efegreat/forgo/blob/main/REFERENCE.md#testing) runs it. There is no second wiring for tests.
+- Tests that go through a server run the application that `main` runs: `app` builds it, and forgo's [`forgotest`](https://github.com/efegreat/forgo/blob/main/REFERENCE.md#testing) runs it. There is no second wiring for tests.
 - Tests remain ordinary Go tests. Avoid introducing Gherkin-style abstractions unless there is a strong reason to do so.
 
 ```text
 test/
 ├── fixtures/          SQL fixtures by scenario, embedded by fixtures.go
-├── support/           the database container, the envs, fixtures, an HTTP client
+├── support/           the containers, the envs, fixtures, HTTP clients and commands
 ├── http/
-│   ├── features/      one endpoint, through the router in process
+│   ├── features/      one endpoint, through the router in process, and the ops server
 │   └── e2e/           a flow of several requests, over the network
 ├── worker/            message handlers, through env.Deliver
 ├── cron/              jobs, through env.RunJob
-├── contract/          a message, from the endpoint that saves it to the handler that handles it
+├── contract/          a message, from the operation that saves it to the handler that handles it
+├── cli/               the commands of the CLI, and the API document
 └── integration/       components against real infrastructure, without an app
 ```
 
@@ -44,7 +45,7 @@ func TestMain(m *testing.M) {
 ```
 
 - `support.StartDatabase` starts the PostgreSQL container of the package and points `DATABASE_URL` at it, before any env reads it. That is why `config.DB` is a function, not a var: Go evaluates package-level vars before `TestMain`.
-- `support.HTTP`, `support.Worker` and `support.Cron` build the env of each deployable of `internal/app`.
+- `support.HTTP`, `support.Worker` and `support.Cron` build the env of each deployable of `app`. The env of the jobs needs Redis, for their locks: its packages call `support.StartRedis` too, which points `REDIS_ADDR` at a container of their own.
 - The tests of a package share the env and the database, so they do not call `t.Parallel()`. Each test resets the database first, with `support.Fixture`. Packages still run in parallel, each with its own container.
 
 ---
@@ -59,8 +60,11 @@ SQL fixtures are preferred for relational databases because they are explicit, e
 test/
 └── fixtures/
     ├── fixtures.go
+    ├── inbox/
+    │   └── failed_messages.sql
     ├── orders/
-    │   └── placed_order.sql
+    │   ├── placed_order.sql
+    │   └── shipped_order.sql
     └── shipments/
         └── pending_shipments.sql
 ```
@@ -85,7 +89,7 @@ sessions.sql
 
 when the fixture exists specifically to prepare a business scenario.
 
-`support.Fixture(t, names...)` empties every table but the migrations, the outbox and the inbox included, then runs the named fixtures in order. With no names, it leaves an empty database:
+`support.Fixture(t, names...)` empties every table but the migrations, the outbox, the inbox and the live configs included, then runs the named fixtures in order. With no names, it leaves an empty database. `support.Load(t, names...)` runs fixtures without emptying anything, for a state that changes in the middle of a test:
 
 ```go
 support.Fixture(t)                                    // empty
@@ -114,7 +118,8 @@ Application dependencies used by the request path are backed by real test infras
 
 HTTP tests are divided into **features** and **E2E** tests based on the scope of behavior being tested. Both run the whole chain of the route. They differ in how a request reaches it:
 
-- `support.Router(t, env)` serves requests through the router of the HTTP server, in process, without the network. A request costs a couple of microseconds.
+- `support.Router(t, env)` serves requests through the router of the HTTP server, in process, without the network. A request costs a couple of microseconds. Each client it returns sends from an address of its own, so that the per-client rate limit of `POST /v1/orders` never carries over from one test to the next.
+- `support.Ops(t, env)` is the same client for the ops server of the env: health, metrics and live configs.
 - `support.Live(t, env)` sends them to the server over loopback, as clients do, through net/http's server: its timeouts and limits, and connection handling.
 
 ## `http/features/`
@@ -219,6 +224,8 @@ It runs the handler of the message's name, the binding and the validation of its
 
 Tests run no broker: `support.Worker` puts forgotest's stand-in in place of RabbitMQ.
 
+A handler that fails a message with `worker.ErrNoRetry` rejects it at once, which `Deliver` returns as `Rejected`. Retrying it later is two steps, and the worker's tests run both: the `retry-failed` command, through `support.Command`, sets its inbox row back to waiting, and a second `Deliver` replays it, as the dead-letter queue would.
+
 ## `cron/`
 
 `env.RunJob` runs a job once, now, through its chain:
@@ -229,11 +236,13 @@ err := env.RunJob(t.Context(), "dispatch_shipments")
 
 Whether the schedule is the one you meant is configuration, not behavior, so tests never run the scheduler.
 
+The lock of a job is behavior: `support.HoldLock` takes it in the package's Redis, as another replica would, and a run then dispatches nothing.
+
 ---
 
 # `contract/`
 
-A message connects two deployables: the endpoint that saves it to the outbox, and the handler that handles it. The contract test runs both, as two envs over one database, just as two processes run in production:
+A message connects two deployables: the operation that saves it to the outbox, and the handler that handles it. The contract tests run them, as envs over one database, just as separate processes run in production: the API and the worker for `order.placed`, the jobs and the worker for `shipment.dispatched`.
 
 ```go
 resp := support.Router(t, api).Post(t, "/v1/orders", order.PlaceReq{SKU: "a-1", Quantity: 2})
@@ -241,9 +250,15 @@ msgs, err := api.Outbox(t.Context())                         // what the relay w
 got, err := worker.Deliver(t.Context(), "shipping", msgs[0]) // as the broker would deliver it
 ```
 
-It catches a message name that no handler is registered under, and a payload that the handler's validation rejects.
+It catches a message name that no handler is registered under, and a payload that the handler's validation rejects. One test follows an order through both messages, until the API reads it as shipped.
 
-What it cannot catch is the broker between them. RabbitMQ has to route the exchange `orders` to the queue `shipping`, as `config.Broker` declares. A wrong binding loses messages in production while every test passes. **The broker topology is the application's responsibility.** Verify it where it is declared, against a real broker, in staging or a smoke check.
+What it cannot catch is the broker between them. RabbitMQ has to route the exchange `orders` to the queue `shipping`, and `shipments` to `order`, as `config.Broker` declares. A wrong binding loses messages in production while every test passes. **The broker topology is the application's responsibility.** Verify it where it is declared, against a real broker, in staging or a smoke check.
+
+---
+
+# `cli/`
+
+`support.Command` runs a command of the CLI, as `cmd/cli` does. The CLI's tests check the flags of `retry-failed`, and that `api/openapi-v1.json` is the document the `openapi` command writes: a change to the API fails them until the document is rewritten, in the same pull request, so reviewers see what clients will see.
 
 ---
 
@@ -319,8 +334,11 @@ One message handler + side effects
 One job run + side effects
     → cron test
 
-A message from the endpoint that saves it to the handler that handles it
+A message from the operation that saves it to the handler that handles it
     → contract test
+
+One CLI command, or the API document
+    → CLI test
 ```
 
 Do not promote a test to a larger scope without a reason.
@@ -337,7 +355,7 @@ Tests run as much of the production code as they can, so prefer configuration to
 
 | Dependency | Example | In tests |
 | --- | --- | --- |
-| Infrastructure that runs in a container | PostgreSQL | Nothing is replaced: `config.DB` reads the container's `DATABASE_URL`. |
+| Infrastructure that runs in a container | PostgreSQL, Redis | Nothing is replaced: `config.DB` and `config.Redis` read the containers' `DATABASE_URL` and `REDIS_ADDR`. |
 | Broker | RabbitMQ | forgotest's stand-in broker, through `forgotest.ReplaceResource` in `support.Worker`. |
 | Third-party services | Payments, email, SMS | Preferably an `httptest.Server` fake, whose URL the client's configuration reads. Otherwise, a fake of the client's port in place of its adapter, through `forgotest.Replace`: adapter constructors return their port, so a fake's constructor returns the same type. |
 
@@ -347,7 +365,7 @@ A fake that the tests of a package share is reset by each test, like the databas
 
 # Test infrastructure
 
-Real infrastructure is disposable and reproducible. `support.StartDatabase` starts a PostgreSQL container through Testcontainers, migrates it with the app's own `migrate` command, and stops it when `TestMain` returns.
+Real infrastructure is disposable and reproducible. `support.StartDatabase` starts a PostgreSQL container through Testcontainers, migrates it with the app's own `migrate` command, and stops it when `TestMain` returns. `support.StartRedis` does the same for Redis.
 
 Application tests do not depend on developers manually configuring long-lived databases before running them.
 
@@ -418,8 +436,8 @@ Common helpers live in `support/`:
 ```text
 test/
 └── support/
-    ├── support.go     the database container, the envs, Fixture and Count
-    └── http.go        Router, Live, and the responses' JSON envelope
+    ├── support.go     the containers, the envs, Fixture, Load, Count, HoldLock and Command
+    └── http.go        Router, Ops, Live, and the responses' JSON envelope
 ```
 
 Keep these helpers small and focused.

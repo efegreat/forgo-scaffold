@@ -10,7 +10,6 @@ import (
 // outbox, which the worker relays.
 func HTTP() *forgo.App {
 	return forgo.NewApp(options("example-http",
-		forgo.WithResources(config.DB()),
-		forgo.WithServers(config.HTTP),
+		forgo.WithServers(config.HTTP, config.Ops(":8081", config.Drain)),
 	)...)
 }

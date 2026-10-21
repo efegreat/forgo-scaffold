@@ -8,16 +8,20 @@ import (
 	"example/test/support"
 )
 
-// api and worker run the two deployables that a message connects, over one database, as two processes
-// do in production.
-var api, worker *forgotest.Env
+// api, worker and jobs run the deployables that the messages connect, over one database, as separate
+// processes do in production.
+var api, worker, jobs *forgotest.Env
 
 func TestMain(m *testing.M) {
-	stop := support.StartDatabase()
-	defer stop()
+	stopDB := support.StartDatabase()
+	defer stopDB()
+	stopRedis := support.StartRedis()
+	defer stopRedis()
 	api = support.HTTP()
 	defer api.Close()
 	worker = support.Worker()
 	defer worker.Close()
+	jobs = support.Cron()
+	defer jobs.Close()
 	m.Run()
 }

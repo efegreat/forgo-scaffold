@@ -22,14 +22,14 @@ func placedMessage(t *testing.T, e event.OrderPlaced) worker.Message {
 
 func TestOrderPlacedShips(t *testing.T) {
 	support.Fixture(t)
-	msg := placedMessage(t, event.OrderPlaced{OrderID: "0199f0a0-0000-7000-8000-000000000001", SKU: "a-1", Quantity: 2})
+	msg := placedMessage(t, event.OrderPlaced{OrderID: orderID, SKU: "a-1", Quantity: 2})
 
 	got, err := env.Deliver(t.Context(), "shipping", msg)
 
 	if err != nil || got.Settlement != forgotest.Completed {
 		t.Fatalf("delivery %+v, %v", got, err)
 	}
-	if n := support.Count(t, `SELECT COUNT(*) FROM shipments WHERE order_id = $1 AND sku = 'a-1' AND quantity = 2 AND status = 'pending'`, "0199f0a0-0000-7000-8000-000000000001"); n != 1 {
+	if n := support.Count(t, `SELECT COUNT(*) FROM shipments WHERE order_id = $1 AND sku = 'a-1' AND quantity = 2 AND status = 'pending'`, orderID); n != 1 {
 		t.Fatalf("%d shipments", n)
 	}
 }
@@ -37,7 +37,7 @@ func TestOrderPlacedShips(t *testing.T) {
 // A message delivered twice, as brokers do, ships its order once: the inbox skips the second delivery.
 func TestOrderPlacedTwiceShipsOnce(t *testing.T) {
 	support.Fixture(t)
-	msg := placedMessage(t, event.OrderPlaced{OrderID: "0199f0a0-0000-7000-8000-000000000001", SKU: "a-1", Quantity: 2})
+	msg := placedMessage(t, event.OrderPlaced{OrderID: orderID, SKU: "a-1", Quantity: 2})
 
 	for range 2 {
 		if got, err := env.Deliver(t.Context(), "shipping", msg); err != nil || got.Settlement != forgotest.Completed {

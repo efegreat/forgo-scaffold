@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"example/internal/app"
+	"example/app"
 )
 
 func main() {

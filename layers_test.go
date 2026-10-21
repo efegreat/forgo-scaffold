@@ -19,16 +19,19 @@ const module = "example"
 // or an adapter, such as domain/order, may import its own subpackages but never a sibling: domains
 // share entity, errs, event and port instead of importing each other.
 var layers = map[string][]string{
-	"entity":  {"errs"}, // an entity's invariants fail with business errors
+	"entity":  {"errs"}, // an entity's rules fail with business errors
 	"errs":    nil,
 	"event":   nil,
 	"port":    {"entity", "event"},
 	"domain":  {"entity", "errs", "event", "port"},
 	"adapter": {"entity", "errs", "event", "port"},
-	"app":     {"adapter", "domain", "entity", "errs", "event", "port"},
 }
 
-// infrastructure are the packages that only adapter and app may import: the rest of the application
+// composition are the packages outside internal that build the deployables from it. internal never
+// imports them: they import it.
+var composition = []string{module + "/app", module + "/config", module + "/cmd"}
+
+// infrastructure are the packages that only adapter may import in internal: the rest of the application
 // never knows which database or service is behind a port. Add the clients your adapters use.
 var infrastructure = []string{"database/sql", "github.com/efegreat/forgo-adapter"}
 
@@ -42,8 +45,8 @@ func unit(pkg string) string {
 	return parts[0]
 }
 
-// The packages of internal import only what their layer may: the dependencies point from app, through
-// adapter and domain, to port and the shared packages, and never back. The compiler cannot see this
+// The packages of internal import only what their layer may: the dependencies point from adapter and
+// domain to port and the shared packages, and never back, nor out to the packages that compose them. The compiler cannot see this
 // until it becomes an import cycle, so the test fails on the first import across the rule instead.
 func TestLayers(t *testing.T) {
 	files := 0
@@ -77,12 +80,17 @@ func TestLayers(t *testing.T) {
 				}
 				continue
 			}
-			if layer == "adapter" || layer == "app" {
+			for _, outer := range composition {
+				if imp == outer || strings.HasPrefix(imp, outer+"/") {
+					t.Errorf("%s imports %s, which composes internal", file, imp)
+				}
+			}
+			if layer == "adapter" {
 				continue
 			}
 			for _, infra := range infrastructure {
 				if imp == infra || strings.HasPrefix(imp, infra+"/") {
-					t.Errorf("%s imports %s: only adapter and app may", file, imp)
+					t.Errorf("%s imports %s: only adapter may", file, imp)
 				}
 			}
 		}

@@ -1,5 +1,5 @@
-// Package support holds what the tests under test/ share: the database container of a test package, the
-// envs that run the deployables of internal/app, SQL fixtures, and HTTP requests. It holds no behavior of
+// Package support holds what the tests under test/ share: the database and Redis containers of a test
+// package, the envs that run the deployables of app, SQL fixtures, and HTTP requests. It holds no behavior of
 // the application: the tests run the app's own wiring, through forgo's forgotest.
 //
 // A test package starts its database and builds its env once, in TestMain, and shares them between its
@@ -24,15 +24,19 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/efegreat/forgo-adapter/provider/locker"
 	"github.com/efegreat/forgo-adapter/resource/broker/rabbitmq"
 	"github.com/efegreat/forgo/cli"
 	"github.com/efegreat/forgo/forgotest"
+	"github.com/redis/go-redis/v9"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 
+	"example/app"
 	"example/config"
-	"example/internal/app"
 	"example/test/fixtures"
 )
 
@@ -40,7 +44,7 @@ import (
 var db *sql.DB
 
 // StartDatabase starts the PostgreSQL container of the test package, points DATABASE_URL at it, and
-// migrates it with the migrate command of internal/app, as a deploy would. It returns the function that
+// migrates it with the migrate command of app, as a deploy would. It returns the function that
 // stops it. Call it first in TestMain, since config.DB reads DATABASE_URL when an env is built. A failure
 // ends the test binary, and testcontainers' reaper removes the container.
 func StartDatabase() (stop func()) {
@@ -75,6 +79,46 @@ func StartDatabase() (stop func()) {
 	}
 }
 
+// redisAddr is the address of the test package's Redis, for HoldLock.
+var redisAddr string
+
+// StartRedis starts the Redis container of the test package, which holds the locks of the scheduled jobs,
+// and points REDIS_ADDR at it. It returns the function that stops it. Call it in TestMain before an env of
+// the cron deployable is built, since config.Redis reads REDIS_ADDR then.
+func StartRedis() (stop func()) {
+	ctx := context.Background()
+	ctr, err := tcredis.Run(ctx, "redis:8")
+	if err != nil {
+		log.Fatalf("support: start redis: %v", err)
+	}
+	if redisAddr, err = ctr.Endpoint(ctx, ""); err != nil {
+		log.Fatalf("support: redis address: %v", err)
+	}
+	if err := os.Setenv("REDIS_ADDR", redisAddr); err != nil {
+		log.Fatal(err)
+	}
+	return func() {
+		if err := testcontainers.TerminateContainer(ctr); err != nil {
+			log.Printf("support: stop redis: %v", err)
+		}
+	}
+}
+
+// HoldLock takes the lock key for ttl in the test package's Redis, as another replica that runs the job
+// would, and releases it when t ends.
+func HoldLock(t testing.TB, key string, ttl time.Duration) {
+	t.Helper()
+	cl := redis.NewClient(&redis.Options{Addr: redisAddr})
+	other := locker.NewRedis(cl)
+	if ok, err := other.Lock(t.Context(), key, ttl); err != nil || !ok {
+		t.Fatalf("lock %s: %t, %v", key, ok, err)
+	}
+	t.Cleanup(func() {
+		_ = other.Unlock(context.Background(), key)
+		_ = cl.Close()
+	})
+}
+
 // DB returns the database of the test package, for tests of repositories.
 func DB() *sql.DB {
 	return db
@@ -92,9 +136,16 @@ func Worker() *forgotest.Env {
 		forgotest.ReplaceResource[rabbitmq.Config](forgotest.Broker(config.Broker().Name))))
 }
 
-// Cron builds the env of the scheduled jobs, as cmd/cron runs it.
+// Cron builds the env of the scheduled jobs, as cmd/cron runs it. It needs StartRedis, for the locks of the
+// jobs.
 func Cron() *forgotest.Env {
 	return mustEnv(forgotest.New(app.Cron()))
+}
+
+// Command runs the command of the CLI that args name, such as "retry-failed", "-subscriber=order", as
+// cmd/cli runs it.
+func Command(args ...string) error {
+	return app.CLI(cli.WithArgs(append([]string{"cli"}, args...))).Run()
 }
 
 func mustEnv(env *forgotest.Env, err error) *forgotest.Env {
@@ -134,6 +185,14 @@ func Fixture(t testing.TB, names ...string) {
 			t.Fatal(err)
 		}
 	}
+	Load(t, names...)
+}
+
+// Load runs the fixtures names of test/fixtures in order, over what the database holds, such as an order
+// that a test creates after its message failed.
+func Load(t testing.TB, names ...string) {
+	t.Helper()
+	ctx := t.Context()
 	for _, name := range names {
 		query, err := fixtures.FS.ReadFile(name)
 		if err != nil {

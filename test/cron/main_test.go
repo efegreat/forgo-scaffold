@@ -13,8 +13,10 @@ import (
 var env *forgotest.Env
 
 func TestMain(m *testing.M) {
-	stop := support.StartDatabase()
-	defer stop()
+	stopDB := support.StartDatabase()
+	defer stopDB()
+	stopRedis := support.StartRedis()
+	defer stopRedis()
 	env = support.Cron()
 	defer env.Close()
 	m.Run()

@@ -1,5 +1,5 @@
 -- +migrate Up
--- The shipments of internal/shipping, one per order: the worker records one for each order.placed
+-- The shipments of internal/domain/shipping, one per order: the worker records one for each order.placed
 -- message, and the dispatch job dispatches the pending ones. No foreign key to orders, since the API and
 -- the worker may own separate databases.
 CREATE TABLE shipments (

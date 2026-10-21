@@ -3,33 +3,57 @@ package support
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/efegreat/forgo/forgotest"
 	fhttp "github.com/efegreat/forgo/server/http"
+
+	"example/config"
 )
 
-// Client sends JSON requests to the HTTP server of an env.
+// Client sends JSON requests to an HTTP server of an env.
 type Client struct {
 	router http.Handler // in process when set
+	remote string       // the client address of the requests in process
 	base   string       // otherwise, over loopback
 }
 
-// Router returns a Client that serves requests through the router of env's HTTP server, in process: the
+// clients numbers the clients of Router and Ops, so that each sends from an address of its own.
+var clients atomic.Uint32
+
+// Router returns a Client that serves requests through the router of env's API server, in process: the
 // whole chain of the route runs, without the network. Feature tests use it.
+//
+// Each Client sends from an address of its own, as another client would, so that the rate limits of the
+// API, which count per client, never carry over from one test to the next.
 func Router(t testing.TB, env *forgotest.Env) Client {
 	t.Helper()
-	h, err := env.Handler(fhttp.ServerNameHTTP)
+	return inProcess(t, env, fhttp.ServerNameHTTP)
+}
+
+// Ops returns a Client of env's ops server, in process: its health, metrics and live config endpoints.
+func Ops(t testing.TB, env *forgotest.Env) Client {
+	t.Helper()
+	return inProcess(t, env, config.Ops("", 0).Name())
+}
+
+func inProcess(t testing.TB, env *forgotest.Env, server string) Client {
+	t.Helper()
+	h, err := env.Handler(server)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return Client{router: h}
+	n := clients.Add(1)
+	return Client{router: h, remote: fmt.Sprintf("198.18.%d.%d:40000", n>>8&0xff, n&0xff)}
 }
 
-// Live returns a Client that sends requests to env's HTTP server over loopback, as clients do. E2E tests
+// Live returns a Client that sends requests to env's API server over loopback, as clients do. E2E tests
 // use it.
 func Live(t testing.TB, env *forgotest.Env) Client {
 	t.Helper()
@@ -43,25 +67,37 @@ func Live(t testing.TB, env *forgotest.Env) Client {
 // Post sends body, encoded as JSON, to path.
 func (c Client) Post(t testing.TB, path string, body any) *Response {
 	t.Helper()
-	payload, err := json.Marshal(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return c.send(t, http.MethodPost, path, payload)
+	return c.send(t, http.MethodPost, path, encode(t, body), nil)
+}
+
+// Put sends body, encoded as JSON, to path, with header.
+func (c Client) Put(t testing.TB, path string, body any, header http.Header) *Response {
+	t.Helper()
+	return c.send(t, http.MethodPut, path, encode(t, body), header)
 }
 
 // Get requests path.
 func (c Client) Get(t testing.TB, path string) *Response {
 	t.Helper()
-	return c.send(t, http.MethodGet, path, nil)
+	return c.send(t, http.MethodGet, path, nil, nil)
 }
 
-func (c Client) send(t testing.TB, method, path string, body []byte) *Response {
+func encode(t testing.TB, body any) []byte {
+	t.Helper()
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return payload
+}
+
+func (c Client) send(t testing.TB, method, path string, body []byte, header http.Header) *Response {
 	t.Helper()
 	var resp *http.Response
 	if c.router != nil {
 		req := httptest.NewRequestWithContext(t.Context(), method, path, bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = c.remote
+		setHeader(req, header)
 		rec := httptest.NewRecorder()
 		c.router.ServeHTTP(rec, req)
 		resp = rec.Result()
@@ -70,7 +106,7 @@ func (c Client) send(t testing.TB, method, path string, body []byte) *Response {
 		if err != nil {
 			t.Fatal(err)
 		}
-		req.Header.Set("Content-Type", "application/json")
+		setHeader(req, header)
 		if resp, err = http.DefaultClient.Do(req); err != nil {
 			t.Fatal(err)
 		}
@@ -80,16 +116,26 @@ func (c Client) send(t testing.TB, method, path string, body []byte) *Response {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Response{Code: resp.StatusCode, body: raw}
-	if err := json.Unmarshal(raw, &r.envelope); err != nil {
-		t.Fatalf("%s %s: %d %s: %v", method, path, resp.StatusCode, raw, err)
+	r := &Response{Code: resp.StatusCode, Header: resp.Header, body: raw}
+	if mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); mediaType == "application/json" {
+		if err := json.Unmarshal(raw, &r.envelope); err != nil {
+			t.Fatalf("%s %s: %d %s: %v", method, path, resp.StatusCode, raw, err)
+		}
 	}
 	return r
 }
 
-// Response is a response of the HTTP server, whose JSON envelope holds the result or the error.
+func setHeader(req *http.Request, header http.Header) {
+	req.Header.Set("Content-Type", "application/json")
+	for name, values := range header {
+		req.Header[name] = values
+	}
+}
+
+// Response is a response of an HTTP server, whose JSON envelope holds the result or the error.
 type Response struct {
 	Code     int
+	Header   http.Header
 	body     []byte
 	envelope struct {
 		ErrCode string          `json:"errCode"`
@@ -103,6 +149,11 @@ func (r *Response) Status(t testing.TB, want int) {
 	if r.Code != want {
 		t.Fatalf("status %d, want %d: %s", r.Code, want, r.body)
 	}
+}
+
+// Text returns the body of the response, such as the metrics of an ops server.
+func (r *Response) Text() string {
+	return string(r.body)
 }
 
 // ErrCode returns the error code of an error response, such as "validation".

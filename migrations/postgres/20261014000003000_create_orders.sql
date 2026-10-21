@@ -1,6 +1,6 @@
 -- +migrate Up
--- The orders of internal/order. Placing one also writes its order.placed message to outbox_events, in
--- the same transaction.
+-- The orders of internal/domain/order. Placing one also writes its order.placed message to outbox_events,
+-- in the same transaction, and the order ships once a shipment.dispatched message reaches it.
 CREATE TABLE orders (
     id         TEXT        PRIMARY KEY, -- UUIDv7
     sku        TEXT        NOT NULL,

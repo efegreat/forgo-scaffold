@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: forgo-scaffold
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: forgo-scaffold
+          persist-credentials: false
+
+      # Until forgo and forgo-adapter are released, go.mod replaces them with checkouts next to this one.
+      # Reading them while they are private needs a FORGO_TOKEN secret with read access to both.
+      - name: Check out forgo
+        uses: actions/checkout@v7
+        with:
+          repository: efegreat/forgo
+          path: forgo
+          token: ${{ secrets.FORGO_TOKEN || github.token }}
+          persist-credentials: false
+
+      - name: Check out forgo-adapter
+        uses: actions/checkout@v7
+        with:
+          repository: efegreat/forgo-adapter
+          path: forgo-adapter
+          token: ${{ secrets.FORGO_TOKEN || github.token }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: forgo-scaffold/go.mod
+          cache-dependency-path: forgo-scaffold/go.sum
+          check-latest: true
+
+      - name: Verify formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Verify go.mod is tidy
+        run: go mod tidy -diff
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+
+      # The tests start their PostgreSQL and Redis containers on the runner's Docker.
+      - name: Test
+        run: go test -race ./...
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: forgo-scaffold
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: efegreat/forgo
+          path: forgo
+          token: ${{ secrets.FORGO_TOKEN || github.token }}
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: efegreat/forgo-adapter
+          path: forgo-adapter
+          token: ${{ secrets.FORGO_TOKEN || github.token }}
+          persist-credentials: false
+      - name: Build the image
+        working-directory: forgo-scaffold
+        run: docker build --build-context forgo=../forgo --build-context forgo-adapter=../forgo-adapter -t example .

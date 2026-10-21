@@ -9,7 +9,7 @@ import (
 // Worker is the app that handles messages and relays the outbox, which cmd/worker runs.
 func Worker() *forgo.App {
 	return forgo.NewApp(options("example-worker",
-		forgo.WithResources(config.DB(), config.Broker()),
-		forgo.WithServers(config.Consumer, config.Producer),
+		forgo.WithResources(config.Broker()),
+		forgo.WithServers(config.Consumer, config.Producer, config.Ops(":8082", 0)),
 	)...)
 }

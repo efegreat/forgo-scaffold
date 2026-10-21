@@ -26,12 +26,27 @@ func (r *shipments) Insert(ctx context.Context, s entity.Shipment) error {
 	return err
 }
 
-func (r *shipments) DispatchPending(ctx context.Context) (int64, error) {
-	res, err := sqltx.From(ctx, r.db).ExecContext(ctx,
-		`UPDATE shipments SET status = $1, dispatched_at = CURRENT_TIMESTAMP WHERE status = $2`,
-		entity.ShipmentStatusDispatched, entity.ShipmentStatusPending)
+// DispatchPending reads the oldest pending shipments through the shipments_pending index, and skips those
+// another transaction locked, so that two dispatches never take the same shipment.
+func (r *shipments) DispatchPending(ctx context.Context, limit int) ([]entity.Shipment, error) {
+	rows, err := sqltx.From(ctx, r.db).QueryContext(ctx, `
+		UPDATE shipments SET status = $1, dispatched_at = CURRENT_TIMESTAMP
+		WHERE order_id = ANY(ARRAY(
+			SELECT order_id FROM shipments WHERE status = $2 ORDER BY created_at LIMIT $3 FOR UPDATE SKIP LOCKED
+		))
+		RETURNING order_id, sku, quantity, status`,
+		entity.ShipmentStatusDispatched, entity.ShipmentStatusPending, limit)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return res.RowsAffected()
+	defer rows.Close()
+	var dispatched []entity.Shipment
+	for rows.Next() {
+		var s entity.Shipment
+		if err := rows.Scan(&s.OrderID, &s.SKU, &s.Quantity, &s.Status); err != nil {
+			return nil, err
+		}
+		dispatched = append(dispatched, s)
+	}
+	return dispatched, rows.Err()
 }

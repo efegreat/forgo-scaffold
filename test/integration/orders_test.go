@@ -29,4 +29,14 @@ func TestOrders(t *testing.T) {
 	if _, ok, err := orders.Get(t.Context(), "missing"); err != nil || ok {
 		t.Fatalf("Get of a missing order: %t, %v", ok, err)
 	}
+
+	if err := got.Ship(); err != nil {
+		t.Fatal(err)
+	}
+	if err := orders.Update(t.Context(), got); err != nil {
+		t.Fatal(err)
+	}
+	if shipped, _, err := orders.Get(t.Context(), o.ID); err != nil || shipped.Status != entity.OrderStatusShipped {
+		t.Fatalf("after Update: %+v, %v", shipped, err)
+	}
 }
