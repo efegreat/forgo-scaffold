@@ -4,6 +4,8 @@ A starting point for a backend on [forgo](https://github.com/efegreat/forgo) and
 
 The example domain is small on purpose. Placing an order stores it and saves an `order.placed` message to the outbox in the same transaction. The worker relays the outbox to RabbitMQ, records a shipment for each message, and a job dispatches the pending shipments. Replace the `order` and `shipping` domains, and what they declare in the other layers, to start your own.
 
+The layout is an example, not something forgo requires. forgo works with any layout, and its [Project layout](https://github.com/efegreat/forgo/blob/main/REFERENCE.md#project-layout) lists the few rules that come from forgo itself.
+
 ```text
 .
 ├── cmd/
@@ -29,6 +31,8 @@ The example domain is small on purpose. Placing an order stores it and saves an 
 ```
 
 ## Layers
+
+The layers are this scaffold's choice, a hexagonal one, not forgo's. What forgo itself asks for holds in any layout: `internal/app` builds each deployable's app in a function, `config` reads the resources in functions, and the providers come after what they depend on. Change the rest as your project needs. `layers_test.go` checks this layout's rules, so change it with them, or delete it.
 
 The domains are in the middle, the adapters around them, and `app` wires them together. Dependencies point inward only:
 
