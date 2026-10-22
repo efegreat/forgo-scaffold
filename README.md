@@ -133,3 +133,7 @@ The tests need Docker: each test package starts its PostgreSQL container, and Re
 - The example runs on PostgreSQL. `migrations/mysql` holds forgo's storage tables for MySQL. Switching takes MySQL versions of the example's tables, an `adapter/mysql` in place of `adapter/postgres`, and forgo-adapter's MySQL outbox and inbox.
 - The broker topology in `config.Broker` is not covered by the tests. Check it against a real broker, such as the one of `compose.yaml`.
 - The rate limit of `POST /v1/orders` counts per instance. With several instances, count in Redis with `http.RateLimitWith` and forgo-adapter's `ratelimit.NewRedis`.
+
+## License
+
+forgo-scaffold is released under the [MIT License](LICENSE). Replace it with your own license when you start a project from it.
