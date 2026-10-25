@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/efegreat/forgo-adapter/provider/sqltx"
+	"github.com/efegreat/forgo-adapter/sql/sqltx"
 
 	"example/internal/entity"
 	"example/internal/port"

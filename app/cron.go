@@ -2,7 +2,7 @@ package app
 
 import (
 	"github.com/efegreat/forgo"
-	"github.com/efegreat/forgo-adapter/provider/locker"
+	"github.com/efegreat/forgo-adapter/redis/locker"
 
 	"example/config"
 )

@@ -5,10 +5,10 @@ package app
 import (
 	"github.com/efegreat/forgo"
 	"github.com/efegreat/forgo-adapter/otel/observer"
-	"github.com/efegreat/forgo-adapter/provider/inbox"
-	"github.com/efegreat/forgo-adapter/provider/liveconfig"
-	"github.com/efegreat/forgo-adapter/provider/outbox"
-	"github.com/efegreat/forgo-adapter/provider/sqltx"
+	"github.com/efegreat/forgo-adapter/sql/inbox"
+	"github.com/efegreat/forgo-adapter/sql/liveconfig"
+	"github.com/efegreat/forgo-adapter/sql/outbox"
+	"github.com/efegreat/forgo-adapter/sql/sqltx"
 	_ "github.com/lib/pq" // the PostgreSQL driver of config.DB
 
 	"example/config"

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/efegreat/forgo-adapter/provider/sqltx"
+	"github.com/efegreat/forgo-adapter/sql/sqltx"
 
 	"example/internal/adapter/postgres"
 	"example/internal/entity"
