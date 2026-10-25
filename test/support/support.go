@@ -26,8 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/efegreat/forgo-adapter/provider/locker"
-	"github.com/efegreat/forgo-adapter/resource/broker/rabbitmq"
+	"github.com/efegreat/forgo-adapter/rabbitmq"
+	"github.com/efegreat/forgo-adapter/redis/locker"
 	"github.com/efegreat/forgo/cli"
 	"github.com/efegreat/forgo/forgotest"
 	"github.com/redis/go-redis/v9"

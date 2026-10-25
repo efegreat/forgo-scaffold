@@ -6,6 +6,8 @@ require (
 	github.com/efegreat/forgo v0.0.0
 	github.com/efegreat/forgo-adapter v0.0.0
 	github.com/efegreat/forgo-adapter/otel v0.0.0
+	github.com/efegreat/forgo-adapter/rabbitmq v0.0.0
+	github.com/efegreat/forgo-adapter/redis v0.0.0
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
 	github.com/rabbitmq/amqp091-go v1.15.0
@@ -110,4 +112,6 @@ replace (
 	github.com/efegreat/forgo => ../forgo
 	github.com/efegreat/forgo-adapter => ../forgo-adapter
 	github.com/efegreat/forgo-adapter/otel => ../forgo-adapter/otel
+	github.com/efegreat/forgo-adapter/rabbitmq => ../forgo-adapter/rabbitmq
+	github.com/efegreat/forgo-adapter/redis => ../forgo-adapter/redis
 )

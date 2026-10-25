@@ -5,9 +5,9 @@ import (
 
 	"github.com/efegreat/forgo"
 	"github.com/efegreat/forgo-adapter/otel/meter"
-	"github.com/efegreat/forgo-adapter/resource/broker/rabbitmq"
-	"github.com/efegreat/forgo-adapter/resource/redisdb"
-	"github.com/efegreat/forgo-adapter/resource/sqldb"
+	"github.com/efegreat/forgo-adapter/rabbitmq"
+	"github.com/efegreat/forgo-adapter/redis/redisdb"
+	"github.com/efegreat/forgo-adapter/sql/sqldb"
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"example/internal/event"
