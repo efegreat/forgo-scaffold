@@ -9,10 +9,6 @@ import (
 	"example/internal/domain/order"
 )
 
-// Drain is how long the API keeps serving once it starts terminating, while load balancers stop routing to
-// it: longer than the readiness probe takes to fail, and than the proxies take to drop the instance.
-const Drain = 10 * time.Second
-
 // HTTP serves the orders API.
 //
 // Its readiness probe, GET /ready, fails once termination starts, while the server keeps serving for Drain,

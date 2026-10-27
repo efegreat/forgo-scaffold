@@ -16,6 +16,8 @@ test/
 ├── http/
 │   ├── features/      one endpoint, through the router in process, and the ops server
 │   └── e2e/           a flow of several requests, over the network
+├── grpc/
+│   └── features/      one method of the gRPC API, over loopback, and its ops server
 ├── worker/            message handlers, through env.Deliver
 ├── cron/              jobs, through env.RunJob
 ├── contract/          a message, from the operation that saves it to the handler that handles it
@@ -45,7 +47,7 @@ func TestMain(m *testing.M) {
 ```
 
 - `support.StartDatabase` starts the PostgreSQL container of the package and points `DATABASE_URL` at it, before any env reads it. That is why `config.DB` is a function, not a var: Go evaluates package-level vars before `TestMain`.
-- `support.HTTP`, `support.Worker` and `support.Cron` build the env of each deployable of `app`. The env of the jobs needs Redis, for their locks: its packages call `support.StartRedis` too, which points `REDIS_ADDR` at a container of their own.
+- `support.HTTP`, `support.GRPC`, `support.Worker` and `support.Cron` build the env of each deployable of `app`. The env of the jobs needs Redis, for their locks: its packages call `support.StartRedis` too, which points `REDIS_ADDR` at a container of their own.
 - The tests of a package share the env and the database, so they do not call `t.Parallel()`. Each test resets the database first, with `support.Fixture`. Packages still run in parallel, each with its own container.
 
 ---
@@ -207,6 +209,28 @@ The purpose is to verify the externally observable HTTP workflow, not Kubernetes
 
 ---
 
+# gRPC tests
+
+Tests under `grpc/` exercise the application through its gRPC boundary, `config.GRPC`: the conversion of the proto messages to the requests of `order.Service` and back, validation, the handlers, and the statuses errors are answered with. The methods run the same services as the HTTP routes, through another transport.
+
+grpc-go serves calls only through its HTTP/2 transport, so there is no router to call in process. `support.Orders(t, env)` returns the generated client of `order.v1.OrderService`, connected over loopback, as other services connect, and `support.Status(err)` the code of a failed call and its error code, the reason of its `ErrorInfo`:
+
+```go
+func TestGetOrderNotFound(t *testing.T) {
+    support.Fixture(t)
+
+    _, err := support.Orders(t, env).GetOrder(t.Context(), &orderv1.GetOrderRequest{Id: "missing"})
+
+    if code, errCode := support.Status(err); code != codes.NotFound || errCode != errs.ErrOrderNotFound.Code {
+        t.Fatalf("status %v, error code %q", code, errCode)
+    }
+}
+```
+
+`grpc/features/` holds one method per file, like `http/features/`, and checks what a gRPC client sees, the response or the status, and the side effects.
+
+---
+
 # Worker and cron tests
 
 The env of the worker and the env of the jobs never consume from a broker or run a schedule. Tests run one operation at a time instead, through the same chain production runs.
@@ -328,6 +352,9 @@ One HTTP endpoint + response + side effects
 Multiple HTTP calls representing a business workflow
     → HTTP E2E test
 
+One gRPC method + status + side effects
+    → gRPC feature test
+
 One message handler + side effects
     → worker test
 
@@ -437,7 +464,8 @@ Common helpers live in `support/`:
 test/
 └── support/
     ├── support.go     the containers, the envs, Fixture, Load, Count, HoldLock and Command
-    └── http.go        Router, Ops, Live, and the responses' JSON envelope
+    ├── http.go        Router, Ops, Live, the responses' JSON envelope, and the samples of metrics
+    └── grpc.go        Conn, Orders, and the Status of failed calls
 ```
 
 Keep these helpers small and focused.

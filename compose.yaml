@@ -1,11 +1,12 @@
 # The whole system on one machine: PostgreSQL, RabbitMQ, Redis and Prometheus, the migrations, and the
-# three deployables, built from the Dockerfile.
+# four deployables, built from the Dockerfile.
 #
 #   docker compose up --build
 #
 #   API                  http://localhost:8080/v1/orders
-#   ops of http, worker  http://localhost:8081, :8082 and :8083 (/health, /metrics, /live-configs)
-#   and cron
+#   gRPC API             localhost:50051 (order.v1.OrderService)
+#   ops of http, worker, http://localhost:8081, :8082, :8083 and :8084 (/health, /metrics, /live-configs)
+#   cron and grpc
 #   RabbitMQ             http://localhost:15672 (guest, guest)
 #   Prometheus           http://localhost:9090
 #
@@ -67,6 +68,14 @@ services:
     depends_on:
       migrate: {condition: service_completed_successfully}
 
+  grpc:
+    <<: *deployable
+    entrypoint: ["/usr/local/bin/grpc"]
+    ports: ["50051:50051", "8084:8084"]
+    stop_grace_period: 40s # TermSig.Wait (10s) and TermTimeout (20s) of config.GRPC, and 10s to close
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
   worker:
     <<: *deployable
     entrypoint: ["/usr/local/bin/worker"]
@@ -99,4 +108,4 @@ configs:
       scrape_configs:
         - job_name: example
           static_configs:
-            - targets: ["http:8081", "worker:8082", "cron:8083"]
+            - targets: ["http:8081", "worker:8082", "cron:8083", "grpc:8084"]

@@ -1,0 +1,16 @@
+# Generates the Go code of the .proto files of api next to them: the messages, and the service descriptors that
+# config.GRPC serves and the clients that call them. Run it from the root of the module after a change:
+#
+#   go run github.com/bufbuild/buf/cmd/buf@v1.75.0 generate
+#
+# The plugins are tools of go.mod, which pins their versions. CI fails until the code is rewritten.
+version: v2
+inputs:
+  - directory: api
+plugins:
+  - local: ["go", "tool", "protoc-gen-go"]
+    out: api
+    opt: paths=source_relative
+  - local: ["go", "tool", "protoc-gen-go-grpc"]
+    out: api
+    opt: paths=source_relative

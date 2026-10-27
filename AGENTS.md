@@ -17,6 +17,7 @@ Guide for coding agents and contributors working on this application. [README.md
 2. Route it in `config/http.go` with `http.HandlerFor((*<name>.Service).Method)`.
 3. Rewrite the API document with `go run ./cmd/cli openapi -o=api/openapi.json`.
 4. Add a feature test under `test/http/features`.
+5. To serve it over gRPC too, add its rpc and messages to the domain's `.proto` file, such as `api/order/v1/order.proto`, with the fields of its request and response, and rewrite the Go code with `go run github.com/bufbuild/buf/cmd/buf@v1.75.0 generate`. Route it in `config/grpc.go` with `fgrpc.HandlerFor((*<name>.Service).Method)`, named like its HTTP route, and add a test under `test/grpc/features`.
 
 **A new message.**
 1. Declare its name, destination and payload, and its `Message` method, in `internal/event`.
@@ -51,4 +52,4 @@ gofmt -l .            # must print nothing
 go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 ```
 
-CI (`.github/workflows/ci.yml`) runs these, `go mod tidy -diff`, and a build of the image.
+CI (`.github/workflows/ci.yml`) runs these, `go mod tidy -diff`, a check that the code generated from `api`'s `.proto` files is current, and a build of the image.

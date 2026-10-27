@@ -1,10 +1,10 @@
 # forgo scaffold
 
-A starting point for a backend on [forgo](https://github.com/efegreat/forgo) and [forgo-adapter](https://github.com/efegreat/forgo-adapter): an HTTP API, a worker and scheduled jobs, on PostgreSQL, RabbitMQ and Redis, with metrics, live configs, and tests that run the same application `main` runs.
+A starting point for a backend on [forgo](https://github.com/efegreat/forgo) and [forgo-adapter](https://github.com/efegreat/forgo-adapter): an API over HTTP and gRPC, a worker and scheduled jobs, on PostgreSQL, RabbitMQ and Redis, with metrics, live configs, and tests that run the same application `main` runs.
 
 The example domain is small on purpose:
 
-1. Placing an order stores it and saves an `order.placed` message to the outbox, in the same transaction. A live config limits the quantity of an order, and a rate limit the orders of a client.
+1. Placing an order, over HTTP or gRPC, stores it and saves an `order.placed` message to the outbox, in the same transaction. A live config limits the quantity of an order, and a rate limit the orders of an HTTP client.
 2. The worker relays the outbox to RabbitMQ, and records a shipment for each `order.placed`.
 3. A job dispatches the pending shipments, under a lock that keeps two replicas from dispatching at once, and saves a `shipment.dispatched` message for each.
 4. The worker relays it to the order domain, which marks the order shipped.
@@ -17,6 +17,7 @@ The layout is an example, not something forgo requires. forgo works with any lay
 .
 ├── cmd/
 │   ├── http/            app.HTTP().Run(): the orders API
+│   ├── grpc/            app.GRPC().Run(): the orders API over gRPC, on the same services
 │   ├── worker/          app.Worker().Run(): the consumer and the outbox relay
 │   ├── cron/            app.Cron().Run(): the scheduled jobs
 │   └── cli/             app.CLI().Run(): migrate, openapi and retry-failed
@@ -33,10 +34,11 @@ The layout is an example, not something forgo requires. forgo works with any lay
 │   ├── port/            the interfaces the domains need: repository.go, outbox.go, inbox.go
 │   └── adapter/         the implementations of the ports
 │       └── postgres/    orders.go, shipments.go, failed_messages.go
-├── api/                 the OpenAPI document of the API, which the openapi command writes
+├── api/                 the contracts of the APIs: the OpenAPI document, which the openapi command writes, and
+│                        the .proto files, next to the Go code generated from them (buf.gen.yaml)
 ├── migrations/          postgres/ and mysql/, embedded by migrations.go
 ├── layers_test.go       the import rules of internal
-├── test/                feature, E2E, worker, cron, contract, CLI and integration tests (test/README.md)
+├── test/                HTTP and gRPC, worker, cron, contract, CLI and integration tests (test/README.md)
 ├── Dockerfile           one image of every deployable
 └── compose.yaml         the whole system on one machine
 ```
@@ -59,13 +61,13 @@ The layers are this scaffold's choice, a hexagonal one, not forgo's. What forgo 
 - Domains never import each other. They share entities, errors and events, and reach other domains through ports and messages, so they never form an import cycle: order and shipping exchange messages both ways.
 - Only `adapter` imports infrastructure, such as `database/sql`, forgo-adapter and the clients of other services. `app` provides forgo-adapter's own storages, such as its outbox, which implements `port.Outbox`.
 - Adapter constructors return their port, such as `postgres.NewOrders(db) port.OrderRepository`. The compiler checks the implementation, the bootstrap binds it under the port, and a test can put a fake in its place with `forgotest.Replace`.
-- `config` is where requests come in: its routes, message handlers, jobs and commands call the domains.
+- `config` is where requests come in: its routes, gRPC methods, message handlers, jobs and commands call the domains.
 
 `layers_test.go` fails on an import across these rules, on an import of `app`, `config` or `cmd` from `internal`, and on a directory of `internal` that is no layer.
 
 ## Operations
 
-Each deployable serves an **ops server** next to its work, on a port the cluster must not expose: `:8081` for http, `:8082` for worker and `:8083` for cron, or `OPS_ADDR`.
+Each deployable serves an **ops server** next to its work, on a port the cluster must not expose: `:8081` for http, `:8082` for worker, `:8083` for cron and `:8084` for grpc, or `OPS_ADDR`.
 
 | Route | |
 | --- | --- |
@@ -80,7 +82,7 @@ $ curl localhost:8081/live-configs
 $ curl -X PUT localhost:8081/live-configs/order_limits -H 'If-Match: 0' -d '{"max_quantity": 5}'
 ```
 
-The API answers its readiness probe on `GET /ready`, which fails as soon as it starts terminating. It then keeps serving for 10 seconds, so that load balancers stop routing to it before it stops: rolling deployments fail no request. Point the readiness probe at `/ready`, the liveness probe at the ops server's `/health`, and give the pod a termination grace period of 40 seconds (forgo's [zero-downtime deployments](https://github.com/efegreat/forgo/blob/main/REFERENCE.md#zero-downtime-deployments-on-kubernetes)).
+The API answers its readiness probe on `GET /ready`, which fails as soon as it starts terminating. It then keeps serving for 10 seconds, so that load balancers stop routing to it before it stops: rolling deployments fail no request. Point the readiness probe at `/ready`, the liveness probe at the ops server's `/health`, and give the pod a termination grace period of 40 seconds (forgo's [zero-downtime deployments](https://github.com/efegreat/forgo/blob/main/REFERENCE.md#zero-downtime-deployments-on-kubernetes)). The gRPC API drains the same way: its readiness probe is a gRPC probe of its health service, `grpc.health.v1.Health`, which answers `NOT_SERVING` once it starts terminating.
 
 The logs mask the values of `config.SensitiveFields` in requests, responses, messages and the logged SQL statements, which are the slow and failed ones.
 
@@ -91,6 +93,7 @@ The whole system, built from the Dockerfile, with PostgreSQL, RabbitMQ, Redis an
 ```console
 $ docker compose up --build
 $ curl -X POST localhost:8080/v1/orders -d '{"sku":"a-1","quantity":2}' -H 'Content-Type: application/json'
+$ grpcurl -plaintext -import-path api -proto order/v1/order.proto -d '{"sku":"a-1","quantity":2}' localhost:50051 order.v1.OrderService/PlaceOrder
 ```
 
 RabbitMQ's management UI is on `localhost:15672` (guest, guest), and Prometheus on `localhost:9090`.
@@ -103,7 +106,8 @@ Or run a deployable on its own, with `go run`. The deployables read their config
 | `RABBITMQ_HOST`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD` | `localhost`, `guest`, `guest` |
 | `REDIS_ADDR` | `localhost:6379` |
 | `HTTP_ADDR` | `:8080` |
-| `OPS_ADDR` | `:8081`, `:8082` or `:8083` |
+| `GRPC_ADDR` | `:50051` |
+| `OPS_ADDR` | `:8081`, `:8082`, `:8083` or `:8084` |
 
 ```console
 $ docker compose up -d postgres rabbitmq redis
@@ -132,6 +136,7 @@ The tests need Docker: each test package starts its PostgreSQL container, and Re
 - Until forgo and forgo-adapter are released, `go.mod` reads them from checkouts next to this one (`replace`), and so do the Dockerfile and CI. Drop the `replace` block, the Dockerfile's `COPY --from` lines and CI's extra checkouts once they are.
 - The example runs on PostgreSQL. `migrations/mysql` holds forgo's storage tables for MySQL. Switching takes MySQL versions of the example's tables, an `adapter/mysql` in place of `adapter/postgres`, and forgo-adapter's MySQL outbox and inbox.
 - The broker topology in `config.Broker` is not covered by the tests. Check it against a real broker, such as the one of `compose.yaml`.
+- The gRPC API serves `order.v1.OrderService` of `api/order/v1/order.proto`. After a change to a `.proto` file, rewrite its Go code with `go run github.com/bufbuild/buf/cmd/buf@v1.75.0 generate`: CI fails until it is rewritten. Its methods run the same methods of `order.Service` as the HTTP routes, so business code knows neither transport.
 - The rate limit of `POST /v1/orders` counts per instance. With several instances, count in Redis with `http.RateLimitWith` and forgo-adapter's `ratelimit.NewRedis`.
 
 ## License

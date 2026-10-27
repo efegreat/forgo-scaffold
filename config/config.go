@@ -7,6 +7,8 @@
 package config
 
 import (
+	"time"
+
 	"github.com/efegreat/forgo/logger"
 	"github.com/rs/zerolog"
 )
@@ -15,6 +17,12 @@ import (
 var Logger = logger.Config{Level: zerolog.InfoLevel}
 
 // SensitiveFields are the fields whose values the logs mask as [*]: in the requests and responses of the HTTP
-// servers, in the messages of the consumer, and in the arguments of the logged SQL statements. Credential
-// headers, such as Authorization, are always masked. Add the fields of your own that must not reach logs.
+// and gRPC servers, in the messages of the consumer, and in the arguments of the logged SQL statements.
+// Credential headers, such as Authorization, are always masked. Add the fields of your own that must not
+// reach logs.
 var SensitiveFields = []string{"password", "secret", "token", "email", "phone"}
+
+// Drain is how long the APIs, HTTP and GRPC, keep serving once they start terminating, while load balancers
+// stop routing to them: longer than the readiness probe takes to fail, and than the proxies take to drop the
+// instance.
+const Drain = 10 * time.Second

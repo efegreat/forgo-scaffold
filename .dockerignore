@@ -2,6 +2,6 @@
 .github
 .idea
 .vscode
-api
+api/*.json
 test
 *.md
