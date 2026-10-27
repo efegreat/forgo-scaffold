@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# One image holds every deployable, and each container runs one of them: /usr/local/bin/http, worker, cron
-# or cli. Run the binary itself as the entrypoint, in exec form, so that it receives SIGTERM and drains.
+# One image holds every deployable, and each container runs one of them: /usr/local/bin/http, grpc, worker,
+# cron or cli. Run the binary itself as the entrypoint, in exec form, so that it receives SIGTERM and drains.
 #
 # Until forgo and forgo-adapter are released, go.mod reads them from checkouts next to this one, which the
 # build takes as the contexts named forgo and forgo-adapter (compose.yaml passes them):

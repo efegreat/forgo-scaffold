@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+// The orders API over gRPC, which config.GRPC serves. Its methods run the methods of order.Service that the
+// HTTP routes run, so its messages have the fields of their requests and responses, matched by name.
+//
+// The Go code next to the .proto file is generated from it: rewrite it after a change, with the command of
+// buf.gen.yaml.
+package order.v1;
+
+option go_package = "example/api/order/v1;orderv1";
+
+// OrderService places and reads orders.
+service OrderService {
+  // PlaceOrder stores an order and announces it with an order.placed message. An order above the
+  // order_limits live config fails with InvalidArgument and the reason order_quantity_above_limit.
+  rpc PlaceOrder(PlaceOrderRequest) returns (PlaceOrderResponse);
+  // GetOrder returns an order, or fails with NotFound and the reason order_not_found.
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+}
+
+message PlaceOrderRequest {
+  string sku = 1;
+  int32 quantity = 2;
+}
+
+message PlaceOrderResponse {
+  string id = 1;
+}
+
+message GetOrderRequest {
+  string id = 1;
+}
+
+message GetOrderResponse {
+  string id = 1;
+  string sku = 2;
+  int32 quantity = 3;
+  // status is "placed", or "shipped" once its shipment was dispatched.
+  string status = 4;
+}

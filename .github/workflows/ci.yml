@@ -61,6 +61,16 @@ jobs:
       - name: Verify go.mod is tidy
         run: go mod tidy -diff
 
+      - name: Verify the generated gRPC code
+        run: |
+          go run github.com/bufbuild/buf/cmd/buf@v1.75.0 generate
+          changed="$(git status --porcelain -- api)"
+          if [ -n "$changed" ]; then
+            echo "The code generated from api's .proto files is not current. Rewrite it with buf generate (buf.gen.yaml):"
+            echo "$changed"
+            exit 1
+          fi
+
       - name: Vet
         run: go vet ./...
 

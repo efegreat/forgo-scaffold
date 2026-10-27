@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -154,6 +155,24 @@ func (r *Response) Status(t testing.TB, want int) {
 // Text returns the body of the response, such as the metrics of an ops server.
 func (r *Response) Text() string {
 	return string(r.body)
+}
+
+// HasSample reports whether the body of the response, metrics in Prometheus's text format, holds a sample of
+// name with every label, such as `forgo_operation_name="place_order"`.
+func (r *Response) HasSample(name string, labels ...string) bool {
+	for line := range strings.SplitSeq(string(r.body), "\n") {
+		if !strings.HasPrefix(line, name+"{") {
+			continue
+		}
+		found := true
+		for _, label := range labels {
+			found = found && strings.Contains(line, label)
+		}
+		if found {
+			return true
+		}
+	}
+	return false
 }
 
 // ErrCode returns the error code of an error response, such as "validation".

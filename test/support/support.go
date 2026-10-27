@@ -129,6 +129,12 @@ func HTTP() *forgotest.Env {
 	return mustEnv(forgotest.New(app.HTTP()))
 }
 
+// GRPC builds the env of the orders API over gRPC, as cmd/grpc runs it, and ends the test binary when it
+// fails.
+func GRPC() *forgotest.Env {
+	return mustEnv(forgotest.New(app.GRPC()))
+}
+
 // Worker builds the env of the worker, as cmd/worker runs it, with forgotest's stand-in in place of
 // RabbitMQ: tests run no broker.
 func Worker() *forgotest.Env {

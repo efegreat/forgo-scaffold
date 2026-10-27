@@ -2,7 +2,6 @@ package features
 
 import (
 	"net/http"
-	"strings"
 	"testing"
 
 	"example/internal/domain/order"
@@ -23,27 +22,10 @@ func TestMetrics(t *testing.T) {
 	resp := support.Ops(t, env).Get(t, "/metrics")
 
 	resp.Status(t, http.StatusOK)
-	if !hasSample(resp.Text(), "forgo_operation_duration_seconds_count",
+	if !resp.HasSample("forgo_operation_duration_seconds_count",
 		`forgo_operation_name="place_order"`, `forgo_operation_status="ok"`, `forgo_operation_type="http_handler"`) {
 		t.Fatalf("no count of place_order in:\n%s", resp.Text())
 	}
-}
-
-// hasSample reports whether metrics, in Prometheus's text format, hold a sample of name with every label.
-func hasSample(metrics, name string, labels ...string) bool {
-	for line := range strings.SplitSeq(metrics, "\n") {
-		if !strings.HasPrefix(line, name+"{") {
-			continue
-		}
-		found := true
-		for _, label := range labels {
-			found = found && strings.Contains(line, label)
-		}
-		if found {
-			return true
-		}
-	}
-	return false
 }
 
 // The ops server lists the live configs with their versions, saves a change, and rejects one that fails
