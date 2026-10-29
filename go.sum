@@ -46,6 +46,16 @@ github.com/ebitengine/purego v0.10.1 h1:dewVBCBT2GaMu1SrNTYxQhgQBethzfhiwvZiLGP/
 github.com/ebitengine/purego v0.10.1/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
 github.com/efegreat/bingo v1.0.0 h1:No/aMT1sv6fkLS/VMBhhuAhZjpRLnaOz9YCj7FqfU2E=
 github.com/efegreat/bingo v1.0.0/go.mod h1:R8IkiO9UDv9evH38fp8Lq6ntvSF4IhlWknoPOCerR/E=
+github.com/efegreat/forgo v1.0.0 h1:2Pl+SxBsM1osHTDUa/DolAabdztZaFCo4bS5BFEHWbI=
+github.com/efegreat/forgo v1.0.0/go.mod h1:+CzVY0RbRu8DPBEg4UqJ3lHo8LokoXxE0b3VaqU5Uts=
+github.com/efegreat/forgo-adapter v1.0.0 h1:hCo6/XYWtRFtj/qpow22HZDAmVV1aYmLhmYJpdFEnYw=
+github.com/efegreat/forgo-adapter v1.0.0/go.mod h1:2cygkeCEbyM6j3Z9+8212sp45L5d+TyomN7DQzMY+HM=
+github.com/efegreat/forgo-adapter/otel v1.0.0 h1:fABkXjpnzzRJbY+hFWX3mVPdko31qHhf5Ol3QFof9tM=
+github.com/efegreat/forgo-adapter/otel v1.0.0/go.mod h1:zNtjD3172F3Fd10dy6uZiMNRdh+f8f9j+nQ1U8QL+Ag=
+github.com/efegreat/forgo-adapter/rabbitmq v1.0.0 h1:bp/px0puw09Og1cCcDG/bZaBX5wsPMpmrdsa6TQww90=
+github.com/efegreat/forgo-adapter/rabbitmq v1.0.0/go.mod h1:Tkcuxn+WOn/5iN3pV7ozOFWOqreMnjSuzXVal53z0ks=
+github.com/efegreat/forgo-adapter/redis v1.0.0 h1:xIraFhtrQD46PFm2P/utvp+fmqLPHCoAjD5jNtBQgb0=
+github.com/efegreat/forgo-adapter/redis v1.0.0/go.mod h1:EVCGRzwInLodH/mHe1tByKdFkjFmVV1ml/kuX2YPEbg=
 github.com/felixge/httpsnoop v1.1.0 h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeORc=
 github.com/felixge/httpsnoop v1.1.0/go.mod h1:Zqxgdd+1Rkcz8euOqdr7lqgCRJztwr5hp9vDSi5UZCE=
 github.com/gabriel-vasile/mimetype v1.4.15 h1:05iP/CYtZ/w455R/KZM6rZ5ieAdh99UPtd+d3YzLmaI=
