@@ -3,11 +3,11 @@ module example
 go 1.27.0
 
 require (
-	github.com/efegreat/forgo v0.0.0
-	github.com/efegreat/forgo-adapter v0.0.0
-	github.com/efegreat/forgo-adapter/otel v0.0.0
-	github.com/efegreat/forgo-adapter/rabbitmq v0.0.0
-	github.com/efegreat/forgo-adapter/redis v0.0.0
+	github.com/efegreat/forgo v1.0.0
+	github.com/efegreat/forgo-adapter v1.0.0
+	github.com/efegreat/forgo-adapter/otel v1.0.0
+	github.com/efegreat/forgo-adapter/rabbitmq v1.0.0
+	github.com/efegreat/forgo-adapter/redis v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
 	github.com/rabbitmq/amqp091-go v1.15.0
@@ -106,15 +106,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.2 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-)
-
-// Until forgo and forgo-adapter are released, they are read from checkouts next to this one.
-replace (
-	github.com/efegreat/forgo => ../forgo
-	github.com/efegreat/forgo-adapter => ../forgo-adapter
-	github.com/efegreat/forgo-adapter/otel => ../forgo-adapter/otel
-	github.com/efegreat/forgo-adapter/rabbitmq => ../forgo-adapter/rabbitmq
-	github.com/efegreat/forgo-adapter/redis => ../forgo-adapter/redis
 )
 
 tool (

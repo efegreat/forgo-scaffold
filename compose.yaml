@@ -9,16 +9,11 @@
 #   cron and grpc
 #   RabbitMQ             http://localhost:15672 (guest, guest)
 #   Prometheus           http://localhost:9090
-#
-# Until forgo and forgo-adapter are released, the build reads their checkouts next to this one.
 name: example
 
 x-deployable: &deployable
   build:
     context: .
-    additional_contexts:
-      forgo: ../forgo
-      forgo-adapter: ../forgo-adapter
   image: example
   environment:
     DATABASE_URL: postgres://example:example@postgres:5432/example?sslmode=disable

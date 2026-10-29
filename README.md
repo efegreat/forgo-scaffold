@@ -133,7 +133,6 @@ The tests need Docker: each test package starts its PostgreSQL container, and Re
 
 ## Notes
 
-- Until forgo and forgo-adapter are released, `go.mod` reads them from checkouts next to this one (`replace`), and so do the Dockerfile and CI. Drop the `replace` block, the Dockerfile's `COPY --from` lines and CI's extra checkouts once they are.
 - The example runs on PostgreSQL. `migrations/mysql` holds forgo's storage tables for MySQL. Switching takes MySQL versions of the example's tables, an `adapter/mysql` in place of `adapter/postgres`, and forgo-adapter's MySQL outbox and inbox.
 - The broker topology in `config.Broker` is not covered by the tests. Check it against a real broker, such as the one of `compose.yaml`.
 - The gRPC API serves `order.v1.OrderService` of `api/order/v1/order.proto`. After a change to a `.proto` file, rewrite its Go code with `go run github.com/bufbuild/buf/cmd/buf@v1.75.0 generate`: CI fails until it is rewritten. Its methods run the same methods of `order.Service` as the HTTP routes, so business code knows neither transport.
