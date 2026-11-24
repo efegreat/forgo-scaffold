@@ -46,8 +46,8 @@ github.com/ebitengine/purego v0.10.1 h1:dewVBCBT2GaMu1SrNTYxQhgQBethzfhiwvZiLGP/
 github.com/ebitengine/purego v0.10.1/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
 github.com/efegreat/bingo v1.0.0 h1:No/aMT1sv6fkLS/VMBhhuAhZjpRLnaOz9YCj7FqfU2E=
 github.com/efegreat/bingo v1.0.0/go.mod h1:R8IkiO9UDv9evH38fp8Lq6ntvSF4IhlWknoPOCerR/E=
-github.com/efegreat/forgo v1.0.0 h1:2Pl+SxBsM1osHTDUa/DolAabdztZaFCo4bS5BFEHWbI=
-github.com/efegreat/forgo v1.0.0/go.mod h1:+CzVY0RbRu8DPBEg4UqJ3lHo8LokoXxE0b3VaqU5Uts=
+github.com/efegreat/forgo v1.1.0 h1:sVpyvKTKONtpqrF5+Ka+BDVl2rcg5MeeUtE0rTX/C2U=
+github.com/efegreat/forgo v1.1.0/go.mod h1:+CzVY0RbRu8DPBEg4UqJ3lHo8LokoXxE0b3VaqU5Uts=
 github.com/efegreat/forgo-adapter v1.0.0 h1:hCo6/XYWtRFtj/qpow22HZDAmVV1aYmLhmYJpdFEnYw=
 github.com/efegreat/forgo-adapter v1.0.0/go.mod h1:2cygkeCEbyM6j3Z9+8212sp45L5d+TyomN7DQzMY+HM=
 github.com/efegreat/forgo-adapter/otel v1.0.0 h1:fABkXjpnzzRJbY+hFWX3mVPdko31qHhf5Ol3QFof9tM=
