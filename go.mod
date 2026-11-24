@@ -3,7 +3,7 @@ module example
 go 1.27.0
 
 require (
-	github.com/efegreat/forgo v1.1.0
+	github.com/efegreat/forgo v1.1.1
 	github.com/efegreat/forgo-adapter v1.0.0
 	github.com/efegreat/forgo-adapter/otel v1.0.0
 	github.com/efegreat/forgo-adapter/rabbitmq v1.0.0
